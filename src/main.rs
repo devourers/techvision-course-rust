@@ -1,23 +1,13 @@
 static COLORS: &'static [u8] =
- &[70, 50, 40, 
-  50, 40, 20, 
-  40, 20, 10];
+ &[50, 150, 70, 
+  150, 70, 60, 
+  70, 60, 255];
 static ALBEDO: &'static [f32] = 
-&[0.8, 0.6, 0.4, 
-  0.6, 0.4, 0.3, 
-  0.4, 0.3, 0.1];
+&[0.3, 0.7, 0.6, 
+  0.7, 0.6, 0.5, 
+  0.6, 0.5, 1.0];
 static SIZE: usize = 200;
-static LIGHT_LUMINOSITY: f32 = 255.0;
-static LOCATIONS: &'static [(usize, usize)] = 
-&[(0, 0), 
-  (0, 1), 
-  (0, 2), 
-  (1, 0), 
-  (1, 1), 
-  (1, 2), 
-  (2, 0), 
-  (2, 1),
-  (2, 2)];
+static LIGHT_LUMINOSITY: f32 = 1.0;
 
 fn main(){
     let sim_app = LightSimApp::init(SIZE);
@@ -47,6 +37,19 @@ fn load_im_egui() -> eframe::epaint::ColorImage{
     let rgba = img.as_raw();
     let img_ = eframe::epaint::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], rgba);
     return img_;
+}
+
+fn solve_eq(center: (usize, usize), edge: (usize, usize), scene_arr: &ndarray::Array2::<f32>) -> (f32, f32){
+    let b2 = /*srgb_to_clinear*/(scene_arr[[center.0, center.1]].round() as usize) as f32;
+    let b1 = /*srgb_to_clinear*/(scene_arr[[edge.0, edge.1]].round() as usize) as f32;
+    let diff = b2 - b1;
+    let r1 = eucl_dist((0, 0), edge);
+    let r2 = eucl_dist((0, 0), center);
+    let up = b2 * b2 * r2 * r2 - b1 * b1 * r1 * r1;
+    let down = (b1 * b1 - b2 * b2) as f32;
+    let mut h = up.abs() / down.abs();
+    h = h.sqrt();
+    return (h, diff.abs());
 }
 
 impl LightSimApp{
@@ -81,66 +84,15 @@ impl LightSimApp{
 
     fn solve_height(&mut self){
         let light_loc = self.light_source.location;
-        let size = self.light_source.size;
-        let actual_location = get_actual_location(light_loc, size);
-        for loc in LOCATIONS{
-            if loc.0 + 1 == light_loc.0 && loc.1 == light_loc.1{
-                let right_edge = (size * loc.1 + size-1, size * loc.0 + size / 2);
-                let center = (size * loc.1 + size /2 , size * loc.0 + size / 2);
-                let n1 = self.scene_arr[[right_edge.0, right_edge.1]];
-                let n2 = self.scene_arr[[center.0, center.1]]; //in this case n2 is further from light
-                if (n1 - n2).abs() > 2.0{
-                    let r = eucl_dist(actual_location, right_edge);
-                    let mut up = 
-                    n1 * n1 * (r-1.0) * (r-1.0) 
-                    - n2 * n2 * (r + (size as f32) / 2.0) * (r + (size as f32) / 2.0);
-                    up = up.abs();
-                    let mut down = n2*n2 - n1*n1;
-                    down = down.abs();
-                    let mut h = up / down;
-                    h = h.sqrt();
-                    self.reverse_solution_height = h as u32;
-                    return;
-                }
-            }
-            else if loc.0 - 1 == light_loc.0 && loc.1 == light_loc.1{
-                let left_edge = (size * loc.1 + 5, size * loc.0 + size / 2);
-                let center = (size * loc.1 + size / 2 , size * loc.0 + size / 2);
-                let n1 = self.scene_arr[[left_edge.0, left_edge.1]];
-                let n2 = self.scene_arr[[center.0, center.1]]; //in this case n2 is further from light
-                if (n1 - n2).abs() > 2.0{
-                    let r = eucl_dist(actual_location, left_edge);
-                    let mut up = 
-                    n1 * n1 * (r+5.0) * (r+5.0) 
-                    - n2 * n2 * (r + (size as f32) / 2.0) * (r + (size as f32) / 2.0);
-                    up = up.abs();
-                    let mut down = n2*n2 - n1*n1;
-                    down = down.abs();
-                    let mut h = up / down;
-                    h = h.sqrt();
-                    self.reverse_solution_height = h as u32;
-                    return;
-                }
-            }
-            else if loc == &light_loc{
-                let left_edge = (size * loc.1 + 5, size * loc.0 + size / 2);
-                let center = (size * loc.1 + size / 2, size * loc.0 + size / 2);
-                let n1 = self.scene_arr[[left_edge.0, left_edge.1]];
-                let n2 = self.scene_arr[[center.0, center.1]]; //in this case n2 is further from light
-                if (n1 - n2).abs() > 2.0{
-                    let r = eucl_dist(actual_location, left_edge);
-                    let mut up = 
-                    n1 * n1 * (r+1.0) * (r+1.0) 
-                    - n2 * n2 * (r + (size as f32) / 2.0) * (r + (size as f32) / 2.0);
-                    up = up.abs();
-                    let mut down = n2*n2 - n1*n1;
-                    down = down.abs();
-                    let mut h = up / down;
-                    h = h.sqrt();
-                    self.reverse_solution_height = h as u32;
-                    return;
-                }
-            }
+        if light_loc == (0, 0){
+            let h1 = solve_eq((0, 0), (199, 199), &self.scene_arr);
+            let h2 = solve_eq((200, 200), (399, 399), &self.scene_arr);
+            let h3 = solve_eq((400, 400), (599, 599), &self.scene_arr);
+            let h4 = solve_eq((200, 0), (399, 0), &self.scene_arr);
+            let h5 = solve_eq((400, 0), (599, 0), &self.scene_arr);
+            let h6 = solve_eq((0, 200), (0, 399), &self.scene_arr);
+            let h7 = solve_eq((0, 400), (0, 599), &self.scene_arr);
+            let h_vec: Vec<(f32, f32)> = [h1, h2, h3, h4, h5, h6, h7].to_vec();
         }
     }
 
@@ -239,12 +191,7 @@ fn decide(sz: usize, j: usize, k:usize) -> f32{
 }
 
 fn decide_light(orig: f32, lighted: f32) -> f32{
-    if lighted < orig{
-        return orig;
-    }
-    else{
-        return lighted;
-    }
+    return orig*lighted;
 }
 
 fn clinear_to_srgb(input: f32) -> f32{
@@ -289,7 +236,7 @@ fn arr_to_img(arr: &ndarray::Array2::<f32>) -> image::GrayImage{
     let mut img = image::ImageBuffer::new(arr.dim().0 as u32, arr.dim().1 as u32);
     for (r, row) in arr.outer_iter().enumerate()  {
         for (c, col) in row.iter().enumerate(){
-            let pixel = *col as u8;
+            let pixel = (*col).round() as u8;
             let pixel = image::Luma([pixel]);
             img.put_pixel(r as u32, c as u32, pixel);
         }
@@ -358,7 +305,9 @@ impl eframe::App for LightSimApp{
                     ui.add(eframe::egui::Checkbox::new(&mut self.light_source.is_on, "Turn the light on"));
                 });
             self.img_gui.show(ui);
-            self.update_();
+            if self.light_source.height != 0{
+                self.update_();
+            }
             if ui.button("Save pic").clicked(){
                 let path = "scene_h".to_string() + self.light_source.height.to_string().as_str() + ".png";
                 self.scene.scene_image.save(path).unwrap();
