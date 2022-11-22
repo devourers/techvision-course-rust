@@ -6,7 +6,7 @@ static ALBEDO: &'static [f32] =
 &[0.8, 0.6, 0.4, 
   0.6, 0.4, 0.3, 
   0.4, 0.3, 0.1];
-static SIZE: usize = 250;
+static SIZE: usize = 200;
 static LIGHT_LUMINOSITY: f32 = 255.0;
 static LOCATIONS: &'static [(usize, usize)] = 
 &[(0, 0), 
@@ -58,7 +58,7 @@ impl LightSimApp{
         let rev_sol_albed: Vec<u8> = [0, 0, 0, 
                                        0, 0, 0, 
                                        0, 0, 0].to_vec();
-        let shape = (sz*3 + 2, sz*3 + 2);
+        let shape = (sz*3, sz*3);
         let arr = ndarray::Array2::<f32>::default(shape);
         return LightSimApp { 
             light_source: ls, 
@@ -82,17 +82,17 @@ impl LightSimApp{
     fn solve_height(&mut self){
         let light_loc = self.light_source.location;
         let size = self.light_source.size;
-        let actual_location = (light_loc.1 * size + size / 2, light_loc.0 * size + size / 2);
+        let actual_location = get_actual_location(light_loc, size);
         for loc in LOCATIONS{
             if loc.0 + 1 == light_loc.0 && loc.1 == light_loc.1{
-                let right_edge = (size * loc.1 + size - 5, size * loc.0 + size / 2);
+                let right_edge = (size * loc.1 + size-1, size * loc.0 + size / 2);
                 let center = (size * loc.1 + size /2 , size * loc.0 + size / 2);
                 let n1 = self.scene_arr[[right_edge.0, right_edge.1]];
                 let n2 = self.scene_arr[[center.0, center.1]]; //in this case n2 is further from light
                 if (n1 - n2).abs() > 2.0{
                     let r = eucl_dist(actual_location, right_edge);
                     let mut up = 
-                    n1 * n1 * (r+5.0) * (r+5.0) 
+                    n1 * n1 * (r-1.0) * (r-1.0) 
                     - n2 * n2 * (r + (size as f32) / 2.0) * (r + (size as f32) / 2.0);
                     up = up.abs();
                     let mut down = n2*n2 - n1*n1;
@@ -157,11 +157,27 @@ struct LightSource{
     light_matrix: ndarray::Array2::<f32>
 }
 
-fn get_light(location: (usize, usize), height: u32, size: usize, j: usize, k: usize) -> f32{
-    if j == size || j == 2 * size || k == size || k == 2 * size{
-        return 0.0;
+
+fn get_actual_location(location: (usize, usize), size: usize) -> (usize, usize){
+    if location == (0, 0){
+        return (0 , 0);
     }
-    let actual_location = (location.1 * size + size / 2, location.0 * size + size / 2);
+    else if location == (0, 2){
+        return (size*3-1, 0);
+    }
+    else if location == (2, 0){
+        return (0, size*3-1);
+    }
+    else if location == (2, 2){
+        return (size*3-1, size*3-1);
+    }
+    else{
+        return (location.1 * size + size/2, location.0 * size + size/2);
+    }
+}
+
+fn get_light(location: (usize, usize), height: u32, size: usize, j: usize, k: usize) -> f32{
+    let actual_location = get_actual_location(location, size);
     let ground_dist = eucl_dist(actual_location, (j, k));
     let tg_a = ground_dist / (height as f32);
     let alpha = tg_a.atan();
@@ -180,7 +196,7 @@ impl LightSource{
     fn init() -> Self{
         let location_ = (0, 0);
         let height_: u32 = 0;
-        let shape = (SIZE*3 + 2, SIZE*3 + 2);
+        let shape = (SIZE*3, SIZE*3);
         let light_matrix_ = ndarray::Array2::<f32>::default(shape);
         let is_on_ = false;
         return LightSource { 
@@ -211,20 +227,15 @@ struct Scene{
 }
 
 fn decide(sz: usize, j: usize, k:usize) -> f32{
-    if j == sz || j == 2 * sz || k == sz || k == 2 * sz{
-        return 0.0;
+    let mut x = j / sz;
+    let mut y = k / sz;
+    if x > 2{
+        x = 2;
     }
-    else{
-        let mut x = j / sz;
-        let mut y = k / sz;
-        if x > 2{
-            x = 2;
-        }
-        if y > 2{
-            y = 2;
-        }
-        return COLORS[x * 3+ y] as f32;
-    } 
+    if y > 2{
+        y = 2;
+    }
+    return COLORS[x * 3+ y] as f32;
 }
 
 fn decide_light(orig: f32, lighted: f32) -> f32{
@@ -236,8 +247,35 @@ fn decide_light(orig: f32, lighted: f32) -> f32{
     }
 }
 
+fn clinear_to_srgb(input: f32) -> f32{
+    let a: f32 = 0.055;
+    if input <= 0.0031308{
+        return 12.92 * input;
+    }
+    else{
+        let r1 = input.powf(1.0 / 2.4);
+        let r2 = (1.0 + a) * r1;
+        let r3 = r2 - a;
+        return r3;
+    }
+}
+
+fn srgb_to_clinear(input: usize) -> f32{
+    let a: f32 = 0.055;
+    let input_01 = (input as f32) / 255.0;
+    if input <= 11{
+        return input_01 / 12.92;
+    }
+    else{
+        let r1 = input_01 + a;
+        let r2 = r1 / (1.0 + a);
+        let r3 = r2.powf(2.4);
+        return r3;
+    }
+}
+
 fn generate_arr(sz: usize) -> ndarray::Array2::<f32>{
-    let shape = (sz*3 + 2, sz*3 + 2);
+    let shape = (sz*3, sz*3);
     let mut arr = ndarray::Array2::<f32>::default(shape);
     ndarray::Zip::indexed(arr.outer_iter_mut()).par_for_each(|j, mut row| {
         for (k, col) in row.iter_mut().enumerate(){
@@ -277,7 +315,7 @@ impl Scene{
     }
 
     fn recount_final_array(&self, light_matrix: &ndarray::Array2::<f32>) -> ndarray::Array2::<f32>{
-        let shape = (self.size*3 + 2, self.size*3 + 2);
+        let shape = (self.size*3, self.size*3);
         let mut arr = ndarray::Array2::<f32>::default(shape);
         ndarray::Zip::indexed(arr.outer_iter_mut()).par_for_each(|j, mut row| {
             for (k, col) in row.iter_mut().enumerate(){
@@ -299,7 +337,7 @@ impl Scene{
 }
 
 impl eframe::App for LightSimApp{
-        fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame){
+        fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame){
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Light Simulation");
             ui.vertical(|ui|{
@@ -321,6 +359,10 @@ impl eframe::App for LightSimApp{
                 });
             self.img_gui.show(ui);
             self.update_();
+            if ui.button("Save pic").clicked(){
+                let path = "scene_h".to_string() + self.light_source.height.to_string().as_str() + ".png";
+                self.scene.scene_image.save(path).unwrap();
+            }
             if self.light_source.is_on{
                 ui.label("Reverse task soltions:");
                 ui.label(format!("height: {}", self.reverse_solution_height));
