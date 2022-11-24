@@ -2,17 +2,17 @@ use itertools::Itertools;
 use num::traits::Pow;
 
 
-static COLORS: &'static [f64] =
+static COLORS: &'static [f32] =
  &[1.0, 1.0, 1.0, 
   1.0, 1.0, 1.0, 
   1.0, 1.0, 1.0];
-static ALBEDO: &'static [f64] = 
+static ALBEDO: &'static [f32] = 
 &[0.7, 0.9, 0.1, 
   0.9, 0.5, 0.4, 
   0.6, 0.1, 1.0];
 static SIZE: usize = 200;
-static LIGHT_LUMINOSITY: f64 = 1.0;
-static DIAG: f64 = (SIZE*3 * SIZE * 3 + SIZE*3 * SIZE*3) as f64;
+static LIGHT_LUMINOSITY: f32 = 1.0;
+static DIAG: f32 = (SIZE*3 * SIZE * 3 + SIZE*3 * SIZE*3) as f32;
 static ITER_TAKE: usize = 5000;
 const NTHREADS: usize = 12;
 static LOCATIONS: &'static [(usize, usize)] = 
@@ -25,7 +25,7 @@ static LOCATIONS: &'static [(usize, usize)] =
   (2, 0), 
   (2, 1),
   (2, 2)];
-static DIRECTIONS: &'static [(i64, i64)] = &[
+static DIRECTIONS: &'static [(i32, i32)] = &[
  (-1, 1), 
  (1, 1),
  (1, 0), 
@@ -41,9 +41,9 @@ fn main(){
     eframe::run_native("LightSim", options, Box::new(|_cc| Box::new(sim_app)));
 }
 
-fn eucl_dist(a: &(usize, usize), b: &(usize, usize)) -> f64{
-    let a_ = (a.0 as f64, a.1 as f64);
-    let b_ = (b.0 as f64, b.1 as f64);
+fn eucl_dist(a: &(usize, usize), b: &(usize, usize)) -> f32{
+    let a_ = (a.0 as f32, a.1 as f32);
+    let b_ = (b.0 as f32, b.1 as f32);
     let mut dist = (b_.0 - a_.0) * (b_.0 - a_.0) + (b_.1 - a_.1) * (b_.1 - a_.1);
     dist = dist.sqrt();
     return dist;
@@ -52,25 +52,16 @@ fn eucl_dist(a: &(usize, usize), b: &(usize, usize)) -> f64{
 fn get_circle_center(x1: &(usize, usize), x2: &(usize, usize), x3: &(usize, usize)) -> (bool, (usize, usize)){
     //x0
     //count y_bracket once, multiply in up 
-    let mut y1bracket = (x2.0 * x2.0 + x2.1 * x2.1) as i64 - (x3.0 * x3.0) as i64 - (x3.1 * x3.1) as i64;
-    y1bracket *= x1.1 as i64;
-    let mut y2bracket = (x3.0 * x3.0 + x3.1 * x3.1) as i64 - (x1.0 * x1.0) as i64 - (x1.1 * x1.1) as i64;
-    y2bracket *= x2.1 as i64;
-    let mut y3bracket = (x1.0 * x1.0 + x1.1 * x1.1) as i64 - (x2.0 * x2.0) as i64 - (x2.1 * x2.1) as i64;
-    y3bracket *= x3.1 as i64;
-    let up = y1bracket + y2bracket + y3bracket;
-    let down = x1.0 as i64 * (x2.1 as i64 - x3.1 as i64) + x2.0 as i64*(x3.1 as i64 - x1.1 as i64) + x3.0 as i64*(x1.1 as i64 - x2.1 as i64);
-    let mut x = (up as f64) / (down as f64);
+    let y1bracket = (x2.0 * x2.0 + x2.1 * x2.1) as i32 - (x3.0 * x3.0) as i32 - (x3.1 * x3.1) as i32;
+    let y2bracket = (x3.0 * x3.0 + x3.1 * x3.1) as i32 - (x1.0 * x1.0) as i32 - (x1.1 * x1.1) as i32;
+    let y3bracket = (x1.0 * x1.0 + x1.1 * x1.1) as i32 - (x2.0 * x2.0) as i32 - (x2.1 * x2.1) as i32;
+    let up = (x1.1 as i32) * y1bracket + (x2.1 as i32) * y2bracket + (x3.1 as i32) * y3bracket;
+    let down = x1.0 as i32 * (x2.1 as i32 - x3.1 as i32) + x2.0 as i32*(x3.1 as i32 - x1.1 as i32) + x3.0 as i32*(x1.1 as i32 - x2.1 as i32);
+    let mut x = (up as f32) / (down as f32);
     x *= -0.5;
     //y0
-    let mut y1bracket = (x2.0 * x2.0 + x2.1 * x2.1) as i64 - (x3.0 * x3.0) as i64 - (x3.1 * x3.1) as i64;
-    y1bracket *= x1.0 as i64;
-    let mut y2bracket = (x3.0 * x3.0 + x3.1 * x3.1) as i64 - (x1.0 * x1.0) as i64 - (x1.1 * x1.1) as i64;
-    y2bracket *= x2.0 as i64;
-    let mut y3bracket = (x1.0 * x1.0 + x1.1 * x1.1) as i64 - (x2.0 * x2.0) as i64 - (x2.1 * x2.1) as i64;
-    y3bracket *= x3.0 as i64;
-    let up = y1bracket + y2bracket + y3bracket;
-    let mut y = (up as f64) / (down as f64);
+    let up = (x1.0 as i32) *  y1bracket + (x2.0 as i32) * y2bracket + (x3.0 as i32) * y3bracket;
+    let mut y = (up as f32) / (down as f32);
     y *= 0.5;
     //check if eligable
     let mut approved = true;
@@ -121,14 +112,42 @@ fn process_patch(cluster: std::collections::HashMap<usize, Vec<(usize, usize)>>)
 }
 
 
+fn launch_ray(reverse_solution_location: &(usize, usize), direction: &(i32, i32), scene_arr: &ndarray::Array2::<f32>) -> (f32, f32){
+    let mut res = (0.0, 0.0); //height, diff
+        let mut curr_pos = (reverse_solution_location.0 as i32, reverse_solution_location.1 as i32);
+        let mut mov_pos = curr_pos;
+        while within_bound(mov_pos){
+            let new_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
+            if within_bound(new_pos){
+                if get_patch(new_pos.0 as usize, new_pos.1 as usize) == 
+                get_patch(curr_pos.0 as usize, curr_pos.1 as usize){
+                    let cur_h = solve_eq(reverse_solution_location, (curr_pos.0 as usize, curr_pos.1 as usize),
+                                                    (new_pos.0 as usize, new_pos.1 as usize), 
+                                                    scene_arr);
+                    if cur_h.1 > res.1{
+                        res = cur_h;
+                    }
+                }
+                else{
+                    curr_pos = new_pos;
+                }
+                mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
+            }
+            else{
+                break;
+            }
+        }
+        return res;
+}
+
 struct LightSimApp{
     light_source: LightSource,
     scene: Scene,
     img_gui: egui_extras::RetainedImage,
     reverse_solution_height: u32,
-    revere_solution_albedo: Vec<u8>,
+    revere_solution_albedo: Vec<f32>,
     reverse_solution_location: (usize, usize),
-    scene_arr: ndarray::Array2::<f64>
+    scene_arr: ndarray::Array2::<f32>
 }
 
 fn load_im_egui() -> eframe::epaint::ColorImage{
@@ -138,21 +157,23 @@ fn load_im_egui() -> eframe::epaint::ColorImage{
     return img_;
 }
 
-fn solve_eq(ls: (usize, usize), center: (usize, usize), edge: (usize, usize), scene_arr: &ndarray::Array2::<f64>) -> (f64, f64){
+fn solve_eq(ls: &(usize, usize), center: (usize, usize), edge: (usize, usize), scene_arr: &ndarray::Array2::<f32>) -> (f32, f32){
     let b2 = scene_arr[[center.0, center.1]].powf(1.0 / 3.0);
     let b1 = scene_arr[[edge.0, edge.1]].powf(1.0 / 3.0);
     let diff = b2 - b1;
     let r1 = eucl_dist(&ls, &edge);
     let r2 = eucl_dist(&ls, &center);
     let up = b2 * b2 * r2 * r2 - b1 * b1 * r1 * r1;
-    let down = (b1 * b1 - b2 * b2) as f64;
+    let down = (b1 * b1 - b2 * b2) as f32;
     let mut h = up.abs() / down.abs();
     h = h.sqrt();
     return (h, diff.abs());
 }
 
-fn within_bound(loc: (i64, i64)) -> bool{
-    if loc.0 < 0 || loc.1 < 0 || loc.0 > (SIZE*3 - 1) as i64 || loc.1 > (SIZE*3 - 1) as i64{
+
+//checks if absolute coordinates are within bounds
+fn within_bound(loc: (i32, i32)) -> bool{
+    if loc.0 < 0 || loc.1 < 0 || loc.0 > (SIZE*3 - 1) as i32 || loc.1 > (SIZE*3 - 1) as i32{
         return false;
     }
     else{
@@ -160,6 +181,8 @@ fn within_bound(loc: (i64, i64)) -> bool{
     }
 }
 
+
+//gets patch relative to coordinates
 fn get_patch(j: usize, k: usize) -> (usize, usize){
     let mut x = k / SIZE;
     let mut y = j / SIZE;
@@ -172,6 +195,8 @@ fn get_patch(j: usize, k: usize) -> (usize, usize){
     return (x, y);
 }
 
+
+//Light simulation app implementation
 impl LightSimApp{
     fn init(sz: usize) -> Self{
         let ls = LightSource::init();
@@ -179,11 +204,11 @@ impl LightSimApp{
         let img_ = load_im_egui();
         let rev_sol_h = 0;
         let rev_sol_loc = (0, 0);
-        let rev_sol_albed: Vec<u8> = [0, 0, 0, 
-                                       0, 0, 0, 
-                                       0, 0, 0].to_vec();
+        let rev_sol_albed: Vec<f32> = [0.0, 0.0, 0.0, 
+                                       0.0, 0.0, 0.0, 
+                                       0.0, 0.0, 0.0].to_vec();
         let shape = (sz*3, sz*3);
-        let arr = ndarray::Array2::<f64>::default(shape);
+        let arr = ndarray::Array2::<f32>::default(shape);
         return LightSimApp { 
             light_source: ls, 
             scene: sc,
@@ -195,15 +220,14 @@ impl LightSimApp{
         }
     }
 
+
+    //get color clusters from patch
     fn clusterize_patch(&mut self, loc: &(usize, usize)) -> (bool, std::collections::HashMap<usize, Vec<(usize, usize)>>){
         let loc_restrictions = (loc.1 * SIZE, loc.0*SIZE);
         let patch = self.scene_arr.slice(ndarray::s![loc_restrictions.0..loc_restrictions.0+SIZE,loc_restrictions.1..loc_restrictions.1+SIZE]);
-        let (min, max) = find_min_max(&patch.to_owned());
         let mut clusters: std::collections::HashMap<usize, Vec<(usize, usize)>> = std::collections::HashMap::new();
-        if (min - max).abs() < 0.1{
-            return (false, clusters);
-        }
         let shape = patch.shape();
+        //mapreduce?
         for i in 0..shape[0]{
             for j in 0..shape[1]{
                 let current_brightness = (patch[[i, j]] * 100000000.0) as usize;
@@ -251,49 +275,57 @@ impl LightSimApp{
         }
     }
 
-    fn launch_ray(&mut self, direction: &(i64, i64)) -> (f64, f64){
-        let mut res = (0.0, 0.0); //height, diff
-        let mut curr_pos = (self.reverse_solution_location.0 as i64, self.reverse_solution_location.1 as i64);
-        let mut mov_pos = curr_pos;
-        while within_bound(mov_pos){
-            let new_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
-            if within_bound(new_pos){
-                if get_patch(new_pos.0 as usize, new_pos.1 as usize) == 
-                get_patch(curr_pos.0 as usize, curr_pos.1 as usize){
-                    let cur_h = solve_eq(self.reverse_solution_location, (curr_pos.0 as usize, curr_pos.1 as usize),
-                                                    (new_pos.0 as usize, new_pos.1 as usize), 
-                                                    &self.scene_arr);
-                    if cur_h.1 > res.1{
-                        res = cur_h;
-                    }
-                }
-                else{
-                    curr_pos = new_pos;
-                }
-                mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
-            }
-            else{
-                break;
-            }
-        }
-        return res;
+
+    fn count_diff_albedo(&mut self, pointf1: (usize, usize), pointf2: (usize, usize)) -> f32{
+        let mut f1_b = self.scene_arr[[pointf1.0, pointf1.1]];
+        let r1 = eucl_dist(&self.reverse_solution_location, &pointf1);
+        let cos1 = self.reverse_solution_height as f32 / (r1*r1 + self.reverse_solution_height as f32*self.reverse_solution_height as f32).sqrt();
+        let mut f2_b = self.scene_arr[[pointf2.0, pointf2.1]];
+        let r2 = eucl_dist(&self.reverse_solution_location, &pointf2);
+        let cos2 = self.reverse_solution_height as f32 / (r2*r2 + self.reverse_solution_height as f32*self.reverse_solution_height as f32).sqrt();
+        f1_b /= cos1.pow(3);
+        f2_b /= cos2.pow(3);
+        return f1_b / f2_b;
     }
 
-
     fn solve_height(&mut self){
-        let mut h_vec: Vec<(f64, f64)> = vec!();
-        //rewrite launch ray to non-self, parallel this
+        let mut h_vec: Vec<(f32, f32)> = vec!();
+        let mut children = vec!();
+        let loc_copy = self.reverse_solution_location.clone();
         for dir in DIRECTIONS{
-            let h_c = self.launch_ray(dir);
-            h_vec.push(h_c);
+            let arr_copy = self.scene_arr.clone();
+            children.push(std::thread::spawn(move || -> (f32, f32){
+                let h_c = launch_ray(&loc_copy, dir, &arr_copy);
+                return h_c;
+            }));
+        }
+        let hs = children.into_iter().map(|c| c.join().unwrap());
+        for h in hs{
+            h_vec.push(h);
         }
         h_vec.sort_by(|a, b| a.1.total_cmp(&b.1));
         self.reverse_solution_height = h_vec[h_vec.len() - 1].0.round() as u32;
     }
 
     fn solve_albedo(&mut self){
-        //TODO
-        //count diff on border of two squares for each pair of squares, recount from here.
+        //parallel
+        let mut albedo_arr = ndarray::Array2::<f32>::default([9, 9]);
+        let f_12 = self.count_diff_albedo((SIZE-1, SIZE/2), (SIZE, SIZE/2));
+        albedo_arr[[0, 1]] = f_12;
+        albedo_arr[[1, 0]] = 1.0 / f_12;
+        let f_14 = self.count_diff_albedo((SIZE/2, SIZE - 1), (SIZE/2, SIZE));
+        albedo_arr[[0, 3]]  = f_14;
+        albedo_arr[[3, 0]] = 1.0 / f_14;
+        let f_15 = self.count_diff_albedo((SIZE-1, SIZE-1), (SIZE, SIZE));
+        albedo_arr[[0, 4]] = f_15;
+        albedo_arr[[4, 0]] = 1.0 / f_15;
+        let f_23 = self.count_diff_albedo((SIZE*2 - 1, SIZE/2), (SIZE*2, SIZE/2));
+        albedo_arr[[1, 2]] = f_23;
+        albedo_arr[[2, 1]] = 1.0 / f_23;
+
+
+        //self.revere_solution_albedo[0] = f12;
+        //self.revere_solution_albedo[1] = f14;
     }
     
 }
@@ -304,7 +336,7 @@ struct LightSource{
     height: u32, //in pixels
     is_on: bool,
     size: usize,
-    light_matrix: ndarray::Array2::<f64>
+    light_matrix: ndarray::Array2::<f32>
 }
 
 
@@ -313,10 +345,13 @@ fn get_actual_location(coordinates: (usize, usize), location: (usize, usize), si
 }
 
 
-fn get_light(coordinates: (usize, usize), location: (usize, usize), height: u32, size: usize, j: usize, k: usize) -> f64{
+fn get_light(coordinates: (usize, usize), location: (usize, usize), height: u32, size: usize, j: usize, k: usize) -> f32{
     let actual_location = get_actual_location(coordinates, location, size);
+    if height == 0{
+        return 0.0;
+    }
     let ground_dist = eucl_dist(&actual_location, &(j, k));
-    let tg_a = ground_dist / (height as f64);
+    let tg_a = ground_dist / (height as f32);
     let alpha = tg_a.atan();
     let mut x = k / size;
     let mut y = j / size;
@@ -334,7 +369,7 @@ impl LightSource{
         let location_ = (0, 0);
         let height_: u32 = 0;
         let shape = (SIZE*3, SIZE*3);
-        let light_matrix_ = ndarray::Array2::<f64>::default(shape);
+        let light_matrix_ = ndarray::Array2::<f32>::default(shape);
         let is_on_ = false;
         return LightSource { 
             location: location_,
@@ -359,12 +394,12 @@ impl LightSource{
 }
 
 struct Scene{
-    scene_array: ndarray::Array2::<f64>,
+    scene_array: ndarray::Array2::<f32>,
     scene_image: image::GrayImage,
     size: usize
 }
 
-fn decide(sz: usize, j: usize, k:usize) -> f64{
+fn decide(sz: usize, j: usize, k:usize) -> f32{
     let mut x = k / sz;
     let mut y = j / sz;
     if x > 2{
@@ -373,15 +408,15 @@ fn decide(sz: usize, j: usize, k:usize) -> f64{
     if y > 2{
         y = 2;
     }
-    return COLORS[x * 3 +  y] as f64;
+    return COLORS[x * 3 +  y] as f32;
 }
 
-fn decide_light(orig: f64, lighted: f64) -> f64{
+fn decide_light(orig: f32, lighted: f32) -> f32{
     return orig*lighted;
 }
 
-fn clinear_to_srgb(input: f64) -> f64{
-    let a: f64 = 0.055;
+fn clinear_to_srgb(input: f32) -> f32{
+    let a: f32 = 0.055;
     if input <= 0.0031308{
         return 12.92 * input;
     }
@@ -393,9 +428,9 @@ fn clinear_to_srgb(input: f64) -> f64{
     }
 }
 
-fn srgb_to_clinear(input: usize) -> f64{
-    let a: f64 = 0.055;
-    let input_01 = (input as f64) / 255.0;
+fn srgb_to_clinear(input: usize) -> f32{
+    let a: f32 = 0.055;
+    let input_01 = (input as f32) / 255.0;
     if input <= 11{
         return input_01 / 12.92;
     }
@@ -407,9 +442,9 @@ fn srgb_to_clinear(input: usize) -> f64{
     }
 }
 
-fn generate_arr(sz: usize) -> ndarray::Array2::<f64>{
+fn generate_arr(sz: usize) -> ndarray::Array2::<f32>{
     let shape = (sz*3, sz*3);
-    let mut arr = ndarray::Array2::<f64>::default(shape);
+    let mut arr = ndarray::Array2::<f32>::default(shape);
     ndarray::Zip::indexed(arr.outer_iter_mut()).par_for_each(|j, mut row| {
         for (k, col) in row.iter_mut().enumerate(){
             *col = decide(sz, j, k);
@@ -419,7 +454,7 @@ fn generate_arr(sz: usize) -> ndarray::Array2::<f64>{
 }
 
 
-fn find_min_max(arr: &ndarray::Array2::<f64>) -> (f64, f64){
+fn find_min_max(arr: &ndarray::Array2::<f32>) -> (f32, f32){
     let shape =arr.shape();
     let mut min = arr[[0, 0]];
     let mut max = arr[[0, 0]];
@@ -436,8 +471,8 @@ fn find_min_max(arr: &ndarray::Array2::<f64>) -> (f64, f64){
     return (min, max);
 }
 
-fn prep_arr(arr: &ndarray::Array2::<f64>) -> ndarray::Array2::<f64>{
-    let mut new_arr = ndarray::Array2::<f64>::default((arr.shape()[0], arr.shape()[1]));
+fn prep_arr(arr: &ndarray::Array2::<f32>) -> ndarray::Array2::<f32>{
+    let mut new_arr = ndarray::Array2::<f32>::default((arr.shape()[0], arr.shape()[1]));
     ndarray::Zip::indexed(new_arr.outer_iter_mut()).par_for_each(|j, mut row| {
         for (k, col) in row.iter_mut().enumerate(){
             *col = clinear_to_srgb(arr[[j, k]]) * 255.0;
@@ -449,7 +484,7 @@ fn prep_arr(arr: &ndarray::Array2::<f64>) -> ndarray::Array2::<f64>{
     return new_arr;
 }
 
-fn arr_to_img(arr: &ndarray::Array2::<f64>) -> image::GrayImage{
+fn arr_to_img(arr: &ndarray::Array2::<f32>) -> image::GrayImage{
     let arr_ = prep_arr(&arr);
     let mut img = image::ImageBuffer::new(arr_.dim().0 as u32, arr_.dim().1 as u32);
     for (r, row) in arr_.outer_iter().enumerate()  {
@@ -462,7 +497,7 @@ fn arr_to_img(arr: &ndarray::Array2::<f64>) -> image::GrayImage{
     return img;  
 }
 
-fn generate_arr_and_img(sz: usize)-> (ndarray::Array2::<f64>, image::GrayImage){
+fn generate_arr_and_img(sz: usize)-> (ndarray::Array2::<f32>, image::GrayImage){
     let arr = generate_arr(sz);
     let img = arr_to_img(&arr);
     return (arr, img)
@@ -480,9 +515,9 @@ impl Scene{
         };
     }
 
-    fn recount_final_array(&self, light_matrix: &ndarray::Array2::<f64>) -> ndarray::Array2::<f64>{
+    fn recount_final_array(&self, light_matrix: &ndarray::Array2::<f32>) -> ndarray::Array2::<f32>{
         let shape = (self.size*3, self.size*3);
-        let mut arr = ndarray::Array2::<f64>::default(shape);
+        let mut arr = ndarray::Array2::<f32>::default(shape);
         ndarray::Zip::indexed(arr.outer_iter_mut()).par_for_each(|j, mut row| {
             for (k, col) in row.iter_mut().enumerate(){
                 *col = decide_light(self.scene_array[[j, k]], light_matrix[[j, k]]);
@@ -491,7 +526,7 @@ impl Scene{
         return arr;
     }
 
-    fn update(&mut self, ls: &LightSource) -> ndarray::Array2::<f64>{
+    fn update(&mut self, ls: &LightSource) -> ndarray::Array2::<f32>{
         let mut new_arr = self.recount_final_array(&ls.light_matrix);
         if !ls.is_on{
             new_arr = self.scene_array.clone();
@@ -536,7 +571,7 @@ impl eframe::App for LightSimApp{
                 ui.label("Reverse task soltions:");
                 ui.horizontal(|ui| {
                     ui.label(format!("location: {:?}", self.reverse_solution_location));
-                    ui.label(format!(" ~ error{}", (eucl_dist(&get_actual_location(self.light_source.coordinates, self.light_source.location, SIZE), &self.reverse_solution_location) as f64 / DIAG.sqrt())));
+                    ui.label(format!(" ~ error{}", (eucl_dist(&get_actual_location(self.light_source.coordinates, self.light_source.location, SIZE), &self.reverse_solution_location) as f32 / DIAG.sqrt())));
                  });
                 ui.horizontal(|ui| {
                     ui.label(format!("height: {}", (self.reverse_solution_height as f32 / DIAG.sqrt() as f32)));
