@@ -11,7 +11,7 @@ static ALBEDO: &'static [f32] =
   0.9, 0.5, 0.4, 
   0.6, 0.1, 1.0];
 static SIZE: usize = 200;
-static LIGHT_LUMINOSITY: f32 = 1.0;
+static LIGHT_LUMINOSITY: f32 = 0.5;
 static DIAG: f32 = (SIZE*3 * SIZE * 3 + SIZE*3 * SIZE*3) as f32;
 static ITER_TAKE: usize = 5000;
 const NTHREADS: usize = 12;
@@ -307,25 +307,137 @@ impl LightSimApp{
         self.reverse_solution_height = h_vec[h_vec.len() - 1].0.round() as u32;
     }
 
+
     fn solve_albedo(&mut self){
-        //parallel
         let mut albedo_arr = ndarray::Array2::<f32>::default([9, 9]);
+
+        for i in 0..9{
+            albedo_arr[[i, i]] = 1.0;
+        }
+        
+        //this is faster since it works in O(1), no need for ifs and copying of array
         let f_12 = self.count_diff_albedo((SIZE-1, SIZE/2), (SIZE, SIZE/2));
         albedo_arr[[0, 1]] = f_12;
         albedo_arr[[1, 0]] = 1.0 / f_12;
+
         let f_14 = self.count_diff_albedo((SIZE/2, SIZE - 1), (SIZE/2, SIZE));
         albedo_arr[[0, 3]]  = f_14;
         albedo_arr[[3, 0]] = 1.0 / f_14;
+
         let f_15 = self.count_diff_albedo((SIZE-1, SIZE-1), (SIZE, SIZE));
         albedo_arr[[0, 4]] = f_15;
         albedo_arr[[4, 0]] = 1.0 / f_15;
+
         let f_23 = self.count_diff_albedo((SIZE*2 - 1, SIZE/2), (SIZE*2, SIZE/2));
         albedo_arr[[1, 2]] = f_23;
         albedo_arr[[2, 1]] = 1.0 / f_23;
 
+        let f_24 = self.count_diff_albedo((SIZE, SIZE-1), (SIZE - 1, SIZE));
+        albedo_arr[[1, 3]] = f_24;
+        albedo_arr[[3, 1]] = 1.0 / f_24;
 
-        //self.revere_solution_albedo[0] = f12;
-        //self.revere_solution_albedo[1] = f14;
+        let f_25 = self.count_diff_albedo((SIZE + SIZE/2, SIZE-1), (SIZE + SIZE/2, SIZE));
+        albedo_arr[[1, 4]] = f_25;
+        albedo_arr[[4, 1]] = 1.0 / f_25;
+
+        let f_26 = self.count_diff_albedo((SIZE * 2 - 1, SIZE-1), (SIZE * 2, SIZE));
+        albedo_arr[[1, 5]] = f_26;
+        albedo_arr[[5, 1]] = 1.0 / f_26;
+
+        let f_35 = self.count_diff_albedo((SIZE*2, SIZE-1), (SIZE*2-1, SIZE));
+        albedo_arr[[2, 4]] = f_35;
+        albedo_arr[[4, 2]] = 1.0 / f_35;
+
+        let f_36 = self.count_diff_albedo((SIZE*2 + SIZE / 2, SIZE-1), (SIZE*2 + SIZE/2, SIZE));
+        albedo_arr[[2, 5]] = f_36;
+        albedo_arr[[5, 2]] = 1.0 / f_36;
+
+        let f_45 = self.count_diff_albedo((SIZE-1, SIZE + SIZE / 2), (SIZE, SIZE + SIZE / 2));
+        albedo_arr[[3, 4]] = f_45;
+        albedo_arr[[4, 3]] = 1.0 / f_45;
+
+        let f_48 = self.count_diff_albedo((SIZE - 1, 2*SIZE - 1), (SIZE, 2*SIZE));
+        albedo_arr[[3, 7]] = f_48;
+        albedo_arr[[7, 3]] = 1.0 / f_48;
+
+        let f_47 = self.count_diff_albedo((SIZE/2, SIZE*2 - 1), (SIZE/2, SIZE*2));
+        albedo_arr[[3, 6]] = f_47;
+        albedo_arr[[3, 6]] = 1.0 / f_47;
+
+        let f_56 = self.count_diff_albedo((SIZE*2 - 1, SIZE + SIZE / 2), (SIZE*2, SIZE + SIZE / 2));
+        albedo_arr[[4, 5]] = f_56;
+        albedo_arr[[5, 4]] = 1.0 / f_56;
+
+        let f_57 = self.count_diff_albedo((SIZE, SIZE*2 - 1), (SIZE-1, SIZE*2));
+        albedo_arr[[4, 6]] = f_57;
+        albedo_arr[[6, 4]] = 1.0 / f_57;
+
+        let f_58 = self.count_diff_albedo((SIZE + SIZE/2, SIZE*2 - 1), (SIZE + SIZE/2, SIZE*2));
+        albedo_arr[[4, 7]] = f_58;
+        albedo_arr[[7, 4]] = 1.0 / f_58;
+
+        let f_59 = self.count_diff_albedo((SIZE * 2 - 1, SIZE*2 - 1), (SIZE * 2, SIZE * 2));
+        albedo_arr[[4, 8]] = f_59;
+        albedo_arr[[8, 4]] = 1.0 / f_59;
+
+        let f_68 = self.count_diff_albedo((SIZE * 2, SIZE*2 - 1), (SIZE * 2 - 1, SIZE * 2));
+        albedo_arr[[5, 7]] = f_68;
+        albedo_arr[[7, 5]] = 1.0 / f_68;
+
+        let f_69 = self.count_diff_albedo((SIZE * 2 + SIZE / 2, SIZE*2 - 1), (SIZE * 2 + SIZE / 2, SIZE * 2));
+        albedo_arr[[5, 8]] = f_69;
+        albedo_arr[[8, 5]] = 1.0 / f_69;
+
+        let f_78 = self.count_diff_albedo((SIZE - 1, SIZE * 2 + SIZE / 2), (SIZE, SIZE * 2 + SIZE / 2));
+        albedo_arr[[6, 7]] = f_78;
+        albedo_arr[[7, 6]] = 1.0 / f_78;
+
+        let f_89 = self.count_diff_albedo((SIZE * 2 - 1, SIZE * 2 + SIZE / 2), (SIZE * 2, SIZE * 2 + SIZE / 2));
+        albedo_arr[[7, 8]] = f_89;
+        albedo_arr[[8, 7]] = 1.0 / f_89;
+
+
+        for i in 0..9{
+            for j in 0..9{
+                if albedo_arr[[i, j]] == 0.0{
+                    albedo_arr[[i, j]] = albedo_arr[[i, 4]] * albedo_arr[[4, j]];
+                }
+            }
+        }
+
+        //full array
+        let mut max: usize = 0;
+        let mut cur_greater = 0;
+        let mut min: usize = 0;
+        let mut cur_smaller = 0;
+        for (i, r) in albedo_arr.outer_iter().enumerate(){
+            let mut small_count = 0;
+            let mut large_count = 0;
+            for (j, c) in r.iter().enumerate(){
+                if i != j{
+                    if c < &1.0{
+                        small_count += 1;
+                    }
+                    else {
+                        large_count += 1;
+                    }
+                }
+            }
+            if large_count > cur_greater{
+                max = i;
+                cur_greater = large_count;
+            } 
+            if small_count > cur_smaller{
+                min = i;
+                cur_smaller = small_count;
+            }
+        }
+        //given max albedo can't be higher than 1.0
+        self.revere_solution_albedo[min] = albedo_arr[[min, max]];
+        for i in 0..9{
+            self.revere_solution_albedo[i] = albedo_arr[[min, max]] * albedo_arr[[i, min]];
+        }
+        //minimum is counted via
     }
     
 }
@@ -579,7 +691,11 @@ impl eframe::App for LightSimApp{
                 });
                 for i in 0..3{
                     for j in 0..3{
-                        ui.label(format!("Albedo [{}, {}] : {}", i, j, self.revere_solution_albedo[i + 3*j]));
+                        ui.horizontal(|ui| {
+                            ui.label(format!("Albedo [{}, {}] : {}", i, j, self.revere_solution_albedo[3*i + j]));
+                            ui.label(format!(" ~ error {}", (self.revere_solution_albedo[3*i + j] - ALBEDO[3*i + j]).abs()));
+                        });
+
                     }
                 }
             }
