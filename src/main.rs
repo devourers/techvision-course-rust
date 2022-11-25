@@ -435,7 +435,8 @@ impl LightSimApp{
         //given max albedo can't be higher than 1.0
         self.revere_solution_albedo[min] = albedo_arr[[min, max]];
         for i in 0..9{
-            self.revere_solution_albedo[i] = albedo_arr[[min, max]] * albedo_arr[[i, min]];
+            //self.revere_solution_albedo[i] = albedo_arr[[min, max]] * albedo_arr[[i, min]];
+            self.revere_solution_albedo[i] = albedo_arr[[i, max]];
         }
         //minimum is counted via
     }
@@ -692,8 +693,8 @@ impl eframe::App for LightSimApp{
                 for i in 0..3{
                     for j in 0..3{
                         ui.horizontal(|ui| {
-                            ui.label(format!("Albedo [{}, {}] : {}", i, j, self.revere_solution_albedo[3*i + j]));
-                            ui.label(format!(" ~ error {}", (self.revere_solution_albedo[3*i + j] - ALBEDO[3*i + j]).abs()));
+                            ui.label(format!("Albedo [{}, {}] / Maximum Albedo: {:.2}", i, j, self.revere_solution_albedo[3*i + j]));
+                            ui.label(format!(" ~ error {:.3}", (self.revere_solution_albedo[3*i + j] - (ALBEDO[3*i + j] / ALBEDO.iter().max_by(|p, l| p.partial_cmp(l).unwrap()).unwrap())).abs()));
                         });
 
                     }
