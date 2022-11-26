@@ -970,6 +970,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libm"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
+
+[[package]]
 name = "lock_api"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1472,6 +1478,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "probability"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "768579f4fb8752f747e8fd61c035bb803685eabe2b5e5bd7288d9b37a76f89cb"
+dependencies = [
+ "random",
+ "special",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1499,6 +1515,12 @@ checksum = "bbe448f377a7d6961e30f5955f9b8d106c3f5e449d493ee1b125c1d43c2b5179"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "random"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474c42c904f04dfe2a595a02f71e1a0e5e92ffb5761cc9a4c02140b93b8dd504"
 
 [[package]]
 name = "raw-window-handle"
@@ -1698,6 +1720,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "special"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "322ed043a063dd3cabb4b53b2a37bce115854d94df19acf766d9dacaff218c5a"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1739,6 +1770,7 @@ dependencies = [
  "itertools",
  "ndarray",
  "num",
+ "probability",
 ]
 
 [[package]]
