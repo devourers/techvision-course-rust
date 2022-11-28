@@ -2,6 +2,7 @@ use itertools::Itertools;
 use num::{traits::Pow, clamp};
 
 
+//static IMAGE_PATH: String = "A".to_string();
 static MEAN: f64 = 0.01;
 static SIGMA: f64 = 0.005;
 static SEED: u64 = 1337;
@@ -10,11 +11,11 @@ static COLORS: &'static [f32] =
  &[1.0, 1.0, 1.0, 
   1.0, 1.0, 1.0, 
   1.0, 1.0, 1.0];
-static ALBEDO: &'static [f32] = 
+static ALBEDO: &'static [f32; 9] = 
 &[0.5710, 0.6840, 0.8936, 
   0.7646, 0.8089, 0.6404, 
   1.0000, 0.6245, 0.7684];
-static SIZE: usize = 200;
+static SIZE: usize = 300;
 static LIGHT_LUMINOSITY: f32 = 1.0;
 static DIAG: f32 = (SIZE * 9 * SIZE + SIZE* 9 * SIZE) as f32;
 static ITER_TAKE: usize = 5000;
@@ -40,9 +41,61 @@ static DIRECTIONS: &'static [(i32, i32)] = &[
 ];
 
 fn main(){
-    let sim_app = LightSimApp::init(SIZE);
-    let options = eframe::NativeOptions::default();
-    eframe::run_native("LightSim", options, Box::new(|_cc| Box::new(sim_app)));
+    if std::env::args().len() == 1{
+        let sim_app = LightSimApp::init(SIZE, ALBEDO);
+        let options = eframe::NativeOptions::default();
+        eframe::run_native("LightSim", options, Box::new(|_cc| Box::new(sim_app)));
+    }
+    else{
+        let (x_, y_, h_, albedo) = parse_args(&std::env::args().nth(1).unwrap());
+        reverse_solve_nomad(x_, y_, h_, &albedo);
+    }
+}
+
+fn parse_args(arg: &str) -> (i32, i32, u32, [f32;9]){
+    //args are x, y, height, albedo1, albedo2, albedo3, albedo4, abledo5, albedo6, albedo7, abledo8, albedo9
+    let contents = std::fs::read_to_string(arg).unwrap() as String;
+    let contents = contents.trim();
+    let splitted_contetns: Vec<&str> = contents.split(' ').collect();
+    let x_ = splitted_contetns[0].parse::<i32>().unwrap();
+    let y_ = splitted_contetns[1].parse::<i32>().unwrap();
+    let h_ = splitted_contetns[2].parse::<u32>().unwrap();
+    let a1_ = splitted_contetns[3].parse::<f32>().unwrap();
+    let a2_ = splitted_contetns[4].parse::<f32>().unwrap();
+    let a3_ = splitted_contetns[5].parse::<f32>().unwrap();
+    let a4_ = splitted_contetns[6].parse::<f32>().unwrap();
+    let a5_ = splitted_contetns[7].parse::<f32>().unwrap();
+    let a6_ = splitted_contetns[8].parse::<f32>().unwrap();
+    let a7_ = splitted_contetns[9].parse::<f32>().unwrap();
+    let a8_ = splitted_contetns[10].parse::<f32>().unwrap();
+    let a9_ = splitted_contetns[11].parse::<f32>().unwrap();
+    let albedo: [f32; 9] = [a1_, a2_, a3_, 
+                            a4_, a5_, a6_,
+                            a7_, a8_, a9_];
+    return (x_, y_, h_, albedo);
+
+}
+
+fn reverse_solve_nomad(x_: i32, y_: i32, h_: u32, albedo: &[f32; 9])
+{
+    let mut lightsimapp = LightSimApp::init(SIZE, &albedo);
+    lightsimapp.light_source.coordinates.0 = x_;
+    lightsimapp.light_source.coordinates.1 = y_;
+    lightsimapp.light_source.height = h_;
+    lightsimapp.light_source.is_on = true;
+    lightsimapp.update_no_reverse_solve();
+    //load 2 images and count distance
+    let mut diff = 0.0;
+    let img_generated = image::open("scene.png").unwrap().grayscale();
+    let img_gen = img_generated.as_luma8().unwrap();
+    let img_original = image::open("mondrian_albedo_estimation_frame_3.png").unwrap().grayscale();
+    let img_orig = img_original.as_luma8().unwrap();
+    for i in 0..SIZE*3{
+        for j in 0..SIZE*3{
+            diff += (srgb_to_clinear(img_gen.get_pixel(i as u32, j as u32).0[0] as usize) - srgb_to_clinear(img_orig.get_pixel(i as u32, j as u32).0[0] as usize)).pow(2) as f64;
+        }
+    }
+    println!("{}", diff);
 }
 
 fn eucl_dist(a: &(i32, i32), b: &(i32, i32)) -> f32{
@@ -63,12 +116,13 @@ fn get_circle_center(x1: &(i32, i32), x2: &(i32, i32), x3: &(i32, i32)) -> (bool
     let down = x1.0 as i32 * (x2.1 as i32 - x3.1 as i32) + x2.0 as i32*(x3.1 as i32 - x1.1 as i32) + x3.0 as i32*(x1.1 as i32 - x2.1 as i32);
     let mut x = (up as f32) / (down as f32);
     x *= -0.5;
-    //y0
     let up = (x1.0 as i32) *  y1bracket + (x2.0 as i32) * y2bracket + (x3.0 as i32) * y3bracket;
     let mut y = (up as f32) / (down as f32);
     y *= 0.5;
-    //check if eligable
-    let approved = true;
+    let mut approved = true;
+    if down == 0{
+        approved = false;
+    }
     //if x <= -0.5 || y <= -0.5 || x >= ((SIZE * 3) as f32 - 0.5) || y >= ((SIZE * 3) as f32 - 0.5) {
     //    approved = false;
     //}
@@ -162,28 +216,39 @@ fn median_filter_image(array: &ndarray::Array2::<f32>) -> ndarray::Array2::<f32>
 fn launch_ray(reverse_solution_location: &(i32, i32), direction: &(i32, i32), scene_arr: &ndarray::Array2::<f32>) -> (f32, f32){
     //fix me
     let mut res = (0.0, 0.0); //height, diff
-        let mut curr_pos = (reverse_solution_location.0 as i32, reverse_solution_location.1 as i32);
+        let mut curr_pos = (reverse_solution_location.0, reverse_solution_location.1);
         let mut mov_pos = curr_pos;
-        while within_bound(mov_pos){
-            let new_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
-            if within_bound(new_pos){
-                if get_patch(new_pos.0 as usize, new_pos.1 as usize) == 
-                get_patch(curr_pos.0 as usize, curr_pos.1 as usize){
-                    let cur_h = solve_eq(reverse_solution_location, (curr_pos.0 as usize, curr_pos.1 as usize),
-                                                    (new_pos.0 as usize, new_pos.1 as usize), 
-                                                    scene_arr);
-                    if cur_h.1 > res.1{
-                        res = cur_h;
+        let pic_center = ((SIZE + SIZE / 2) as i32, (SIZE + SIZE / 2) as i32);
+        let check_dist = eucl_dist(&pic_center, &mov_pos);
+        mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
+        let check_dist_2 = eucl_dist(&pic_center, &mov_pos);
+        let mut clicks = 0;
+        if check_dist_2 < check_dist{
+            while !within_bound(mov_pos) && clicks < 1000{
+                mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
+                clicks +=1;
+            }
+            while within_bound(mov_pos){
+                let new_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
+                if within_bound(new_pos){
+                    if get_patch(new_pos.0 as usize, new_pos.1 as usize) == 
+                    get_patch(curr_pos.0 as usize, curr_pos.1 as usize){
+                        let cur_h = solve_eq(reverse_solution_location, (curr_pos.0 as usize, curr_pos.1 as usize),
+                                                        (new_pos.0 as usize, new_pos.1 as usize), 
+                                                        scene_arr);
+                        if cur_h.1 > res.1{
+                            res = cur_h;
+                        }
                     }
+                    else{
+                        curr_pos = new_pos;
+                    }
+                    mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
                 }
                 else{
-                    curr_pos = new_pos;
+                    break;
                 }
-                mov_pos = (mov_pos.0 + direction.0, mov_pos.1 + direction.1);
-            }
-            else{
-                break;
-            }
+            }        
         }
         return res;
 }
@@ -249,8 +314,8 @@ fn get_patch(j: usize, k: usize) -> (usize, usize){
 
 //Light simulation app implementation
 impl LightSimApp{
-    fn init(sz: usize) -> Self{
-        let ls = LightSource::init();
+    fn init(sz: usize, alb: &[f32; 9]) -> Self{
+        let ls = LightSource::init(alb);
         let sc = Scene::init(sz);
         let img_ = load_im_egui();
         let rev_sol_h = 0;
@@ -324,6 +389,17 @@ impl LightSimApp{
         self.solve_albedo();
     }
 
+
+    fn update_no_reverse_solve(&mut self){
+        self.light_source.generate_light_matrix();
+        self.scene_arr = self.scene.update(&self.light_source, &self.noise);
+        if self.noise.is_on{
+            self.scene_arr = median_filter_image(&self.scene_arr);
+        }
+        let img_ = load_im_egui();
+        self.img_gui = egui_extras::RetainedImage::from_color_image("sceneimg", img_);
+    }
+
     fn solve_loc(&mut self){
         let mut answers: std::collections::HashMap<(i32, i32), usize> = std::collections::HashMap::new();
         for loc in LOCATIONS{
@@ -372,10 +448,14 @@ impl LightSimApp{
         }
         let hs = children.into_iter().map(|c| c.join().unwrap());
         for h in hs{
-            h_vec.push(h);
+            if h.1 != 0.0{
+                h_vec.push(h);
+            }
         }
         h_vec.sort_by(|a, b| a.1.total_cmp(&b.1));
-        self.reverse_solution_height = h_vec[h_vec.len() - 1].0.round() as u32;
+        if h_vec.len() > 0{
+            self.reverse_solution_height = h_vec[h_vec.len() - 1].0.round() as u32;
+        }
     }
 
 
@@ -519,6 +599,7 @@ struct LightSource{
     coordinates: (i32, i32),
     height: u32, //in pixels
     is_on: bool,
+    albedo: [f32; 9],
     size: usize,
     light_matrix: ndarray::Array2::<f32>
 }
@@ -529,7 +610,7 @@ fn get_actual_location(coordinates: (i32, i32), location: (usize, usize), size: 
 }
 
 
-fn get_light(coordinates: (i32, i32), location: (usize, usize), height: u32, size: usize, j: usize, k: usize) -> f32{
+fn get_light(coordinates: (i32, i32), location: (usize, usize), height: u32, size: usize, j: usize, k: usize, albedo: &[f32]) -> f32{
     let actual_location = get_actual_location(coordinates, location, size);
     if height == 0{
         return 0.0;
@@ -545,11 +626,11 @@ fn get_light(coordinates: (i32, i32), location: (usize, usize), height: u32, siz
     if y > 2{
         y = 2;
     }
-    return alpha.cos().pow(3) * LIGHT_LUMINOSITY * ALBEDO[3 * x + y];
+    return alpha.cos().pow(3) * LIGHT_LUMINOSITY * albedo[3 * x + y];
 }
 
 impl LightSource{
-    fn init() -> Self{
+    fn init(albedo_: &[f32; 9]) -> Self{
         let location_ = (0, 0);
         let height_: u32 = 0;
         let shape = (SIZE*3, SIZE*3);
@@ -560,6 +641,7 @@ impl LightSource{
             coordinates: (0, 0),
             height: height_, 
             size: SIZE,
+            albedo: *albedo_,
             light_matrix: light_matrix_,
             is_on: is_on_ 
         };
@@ -569,7 +651,7 @@ impl LightSource{
         if self.is_on{
             ndarray::Zip::indexed(self.light_matrix.outer_iter_mut()).par_for_each(|j, mut row| {
                 for (k, col) in row.iter_mut().enumerate(){
-                    *col = get_light(self.coordinates, self.location, self.height, self.size, j, k);
+                    *col = get_light(self.coordinates, self.location, self.height, self.size, j, k, &self.albedo);
                 }
             });
         }
@@ -699,7 +781,7 @@ fn prep_arr(arr: &ndarray::Array2::<f32>) -> ndarray::Array2::<f32>{
     });
     let (_min, max) = find_min_max(&new_arr);
     let coef = 255.0 / max;
-    //new_arr *= coef;
+    new_arr *= coef;
     return new_arr;
 }
 
@@ -765,7 +847,7 @@ fn reverse_solve_task(path: &str){
             img_arr[[i, j]] = srgb_to_clinear(img.get_pixel(i as u32, j as u32).0[0] as usize);
         }
     }
-    let ls = LightSource::init();
+    let ls = LightSource::init(ALBEDO);
     let sc = Scene::init(300);
     let img_ = load_im_egui();
     let rev_sol_h = 0;
@@ -819,7 +901,13 @@ impl eframe::App for LightSimApp{
                 });
             self.img_gui.show(ui);
             if ui.button("Save pic").clicked(){
-                let path = "scene_h".to_string() + self.light_source.height.to_string().as_str() + ".png";
+                let loc = get_actual_location(self.light_source.coordinates, self.light_source.location, SIZE);
+
+                let mut path = "scene_x".to_string() + &loc.0.to_string() + "_y" + &loc.1.to_string()+ "_h" + self.light_source.height.to_string().as_str();
+                if self.noise.is_on{
+                    path += &"_noised".to_string();
+                }
+                path += &".png".to_string();
                 self.scene.scene_image.save(path).unwrap();
             }
             if ui.button("Load pic").clicked(){
@@ -849,6 +937,9 @@ impl eframe::App for LightSimApp{
             }
             });
             });
+        if ui.button("Quit").clicked(){
+            _frame.close();
+        }
         });
     }    
 }
